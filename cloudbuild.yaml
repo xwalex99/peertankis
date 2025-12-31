@@ -33,7 +33,7 @@ steps:
       - "--port"
       - "8080"
       - "--set-env-vars"
-      - "HOST=0.0.0.0,PORT=8080,PEER_PATH=/peerjs,PEER_PROXIED=true,PEER_ALLOW_DISCOVERY=false,PEER_KEY=tankis-peer"
+      - "HOST=0.0.0.0,PEER_PATH=/peerjs,PEER_PROXIED=true,PEER_ALLOW_DISCOVERY=false,PEER_KEY=tankis-peer"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
