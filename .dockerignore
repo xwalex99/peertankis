@@ -5,9 +5,6 @@ yarn-error.log
 .github
 .vscode
 .idea
-Dockerfile
-cloudbuild.yaml
-app.yaml
 README.md
 docs
 env.example

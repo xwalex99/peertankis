@@ -7,8 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Copy the rest
-COPY server.js README.md env.example ./ 
-COPY docs ./docs
+COPY server.js ./
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
