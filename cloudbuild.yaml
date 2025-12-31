@@ -14,7 +14,7 @@ steps:
 
   # Subir la imagen a Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'europe-southwest1-docker.pkg.dev/airsoftlink/peertankis/peertankis:$COMMIT_SHA']
+    args: ['push', 'europe-southwest1-docker.pkg.dev/airsoftlink/peertankis:$COMMIT_SHA']
     timeout: '600s'  # Aumentar tiempo de subida
 
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -24,7 +24,7 @@ steps:
       - "deploy"
       - "${_SERVICE}"
       - "--image"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}:${COMMIT_SHA}"
       - "--region"
       - "${_REGION}"
       - "--platform"
@@ -36,7 +36,7 @@ steps:
       - "HOST=0.0.0.0,PORT=8080,PEER_PATH=/peerjs,PEER_PROXIED=true,PEER_ALLOW_DISCOVERY=false,PEER_KEY=tankis-peer"
 
 images:
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}:${COMMIT_SHA}"
 
 timeout: "2400s"
 
