@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+yarn-error.log
+.git
+.github
+.vscode
+.idea
+Dockerfile
+cloudbuild.yaml
+app.yaml
+README.md
+docs
+env.example
+*.md
+
+
