@@ -8,19 +8,14 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      - "build"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
-      - "."
-    timeout: "1200s"
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-southwest1-docker.pkg.dev/airsoftlink/peertankis:$COMMIT_SHA', '.']
+    timeout: '1200s'  # Aumentar tiempo de construcción para instalar dependencias
 
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      - "push"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
-    timeout: "600s"
+  # Subir la imagen a Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-southwest1-docker.pkg.dev/airsoftlink/peertankis/peertankis:$COMMIT_SHA']
+    timeout: '600s'  # Aumentar tiempo de subida
 
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "gcloud"
