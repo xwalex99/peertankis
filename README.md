@@ -69,6 +69,16 @@ Checklist rápida:
 
 **Recomendación**: despliega el **frontend** en Vercel y el **PeerJS Server** en un VPS/host con soporte de WebSockets (Nginx/Caddy delante con TLS).
 
+## Opción recomendada si usas Vercel para el frontend: Google Cloud Run
+
+Cloud Run funciona bien para este server **si lo mantienes en 1 instancia** (PeerJS guarda estado en memoria; con varias instancias sin sticky sessions se rompe).
+
+- **max instances**: `1`
+- **min instances**: `1` (evita cold starts)
+- **timeout**: alto (ej: `3600s`) para WebSockets
+
+Guía: ver `docs/cloud-run.md`.
+
 ## Nota sobre NAT estricta
 
 PeerJS Server solo hace señalización. Si hay NAT estricta, puede hacer falta **TURN** además de STUN.
