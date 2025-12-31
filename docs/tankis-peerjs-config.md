@@ -139,4 +139,13 @@ PeerJS Server mantiene estado en memoria. Si montas varios nodos detrás de LB:
 - ¿La `key` coincide? server y client deben ser iguales si la usas
 - ¿Firewall/puertos? 80/443 abiertos + puerto interno accesible desde proxy
 
+## Nota: producción con Vercel
+
+- Vercel es perfecto para **subir el frontend** (Tankis).
+- Pero **no** es un buen sitio para correr el **PeerJS Server** (signaling) porque requiere **WebSockets persistentes**; si despliegas este repo como “web” en Vercel, normalmente verás `404: NOT_FOUND`.
+
+Arquitectura recomendada:
+- **Frontend (Vercel)** → `https://tu-app.vercel.app`
+- **PeerJS Server (VPS/host con WSS)** → `https://peer.tudominio.com/peerjs`
+
 

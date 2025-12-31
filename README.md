@@ -62,6 +62,13 @@ Checklist rápida:
 - Sin `Upgrade/Connection`, **WebSocket falla**
 - Para HTTPS detrás de proxy: deja `PEER_PROXIED=true`
 
+## Importante: Vercel (serverless) NO es un buen lugar para el PeerJS Server
+
+- Este repo es un **servidor** (signaling) y **no** un frontend, por eso en Vercel verás `404: NOT_FOUND` si lo despliegas tal cual.
+- Además, PeerJS usa **WebSockets** y necesita conexiones **persistentes**; el modelo serverless de Vercel no está pensado para mantener WS “vivos” de forma estable.
+
+**Recomendación**: despliega el **frontend** en Vercel y el **PeerJS Server** en un VPS/host con soporte de WebSockets (Nginx/Caddy delante con TLS).
+
 ## Nota sobre NAT estricta
 
 PeerJS Server solo hace señalización. Si hay NAT estricta, puede hacer falta **TURN** además de STUN.
