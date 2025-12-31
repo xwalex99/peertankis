@@ -1,0 +1,28 @@
+import { PeerServer } from "peer";
+
+function parseBool(value, defaultValue) {
+  if (value == null) return defaultValue;
+  const v = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(v)) return true;
+  if (["0", "false", "no", "n", "off"].includes(v)) return false;
+  return defaultValue;
+}
+
+const port = Number(process.env.PORT || 9000);
+const path = process.env.PEER_PATH || "/peerjs";
+const key = process.env.PEER_KEY || "tankis-peer";
+
+PeerServer({
+  port,
+  path,
+  // If you're behind a reverse proxy (Nginx/Caddy/Traefik), keep this true
+  proxied: parseBool(process.env.PEER_PROXIED, true),
+  // For safety: do not allow public discovery (`GET /peers`)
+  allow_discovery: parseBool(process.env.PEER_ALLOW_DISCOVERY, false),
+  // Optional: set a custom key to avoid casual abuse of the API
+  key,
+});
+
+console.log(`[peerjs] listening on :${port}${path} (key=${key})`);
+
+
