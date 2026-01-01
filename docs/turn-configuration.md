@@ -38,18 +38,41 @@ Asegúrate de que estos puertos estén abiertos:
 - **5349/tcp**: Puerto TLS de TURN
 - **49152-65535/udp** y **49152-65535/tcp**: Rango de puertos para relay (CRÍTICO)
 
-### 3. Cloud Run - Limitaciones importantes
+### 3. Cloud Run - Limitaciones CRÍTICAS ⚠️
 
-⚠️ **ADVERTENCIA**: Google Cloud Run tiene limitaciones con UDP y puertos dinámicos:
+⚠️ **PROBLEMA CONOCIDO**: Google Cloud Run **NO soporta UDP de forma confiable**, que es esencial para TURN:
 
-- Cloud Run **NO soporta UDP** de forma nativa
-- Los puertos dinámicos (49152-65535) pueden no funcionar correctamente
-- **Recomendación**: Para producción con TURN, considera usar:
-  - **Google Compute Engine (GCE)** con una VM
-  - **Google Kubernetes Engine (GKE)**
-  - Un **VPS** tradicional (DigitalOcean, Linode, etc.)
+- Cloud Run está diseñado para HTTP/HTTPS (TCP), no para UDP
+- TURN necesita UDP para funcionar correctamente
+- Los puertos dinámicos (49152-65535) pueden no estar disponibles
+- **Resultado**: TURN probablemente NO funcionará en Cloud Run
 
-Si aún así quieres intentar en Cloud Run, el Dockerfile está configurado, pero puede que necesites ajustes adicionales.
+**Soluciones**:
+
+1. **Usar solo TCP en el frontend** (limitado pero puede funcionar):
+   ```typescript
+   {
+     urls: `turn:${host}:3478?transport=tcp`,
+     username: 'tankis-turn',
+     credential: 'tankis-turn-secret',
+   }
+   ```
+
+2. **Desplegar TURN en un VPS separado** (RECOMENDADO):
+   - Mantén PeerJS en Cloud Run
+   - Despliega Coturn en un VPS (DigitalOcean, Linode, etc.)
+   - Configura el frontend para usar el VPS para TURN
+
+3. **Usar un servicio TURN público** como fallback:
+   - Metered.ca (gratis con límites)
+   - Twilio (de pago pero confiable)
+
+4. **Desplegar todo en Google Compute Engine (GCE)**:
+   - Crea una VM pequeña
+   - Despliega PeerJS y Coturn en la misma VM
+   - Funciona perfectamente con UDP
+
+**Si decides usar Cloud Run de todos modos**: El Dockerfile está configurado, pero TURN puede no funcionar. El servidor continuará funcionando sin TURN (solo conexiones en la misma red).
 
 ---
 
@@ -209,14 +232,71 @@ Una vez que el servidor TURN esté configurado y funcionando, actualiza el front
 
 ### En `utils/network.ts` (o donde configures PeerJS)
 
+**Ejemplo completo de configuración con PeerJS:**
+
 ```typescript
-// Cambiar estas constantes:
-const USE_OWN_TURN = true;
-const TURN_HOST = 'TU_DOMINIO_PUBLICO';
+import Peer from 'peerjs';
+
+// Configuración del servidor TURN
+const TURN_HOST = 'peertankis-1093381928939.europe-southwest1.run.app';
 const TURN_PORT = 3478;
-const TURN_USERNAME = 'tankis-turn';
-const TURN_CREDENTIAL = 'tankis-turn-secret';
+const TURN_USER = 'tankis-turn';
+const TURN_PASS = 'tankis-turn-secret';
+
+// Crear peer con configuración TURN
+const peer = new Peer(peerId, {
+  host: TURN_HOST,
+  port: 443, // Cloud Run usa HTTPS en puerto 443
+  path: '/peerjs',
+  secure: true, // IMPORTANTE: usar WSS en producción
+  key: 'tankis-peer',
+  config: {
+    iceServers: [
+      // STUN server (descubrimiento de IP pública)
+      {
+        urls: 'stun:stun.l.google.com:19302'
+      },
+      // Tu servidor TURN (UDP - puede no funcionar en Cloud Run)
+      {
+        urls: `turn:${TURN_HOST}:${TURN_PORT}`,
+        username: TURN_USER,
+        credential: TURN_PASS,
+      },
+      // Tu servidor TURN (TCP - funciona mejor en Cloud Run)
+      {
+        urls: `turn:${TURN_HOST}:${TURN_PORT}?transport=tcp`,
+        username: TURN_USER,
+        credential: TURN_PASS,
+      },
+    ],
+    iceCandidatePoolSize: 10, // Pre-generar candidatos ICE
+  },
+});
 ```
+
+**Si estás usando Cloud Run, prioriza TCP:**
+
+```typescript
+config: {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    // TCP primero (funciona mejor en Cloud Run)
+    {
+      urls: `turn:${TURN_HOST}:${TURN_PORT}?transport=tcp`,
+      username: TURN_USER,
+      credential: TURN_PASS,
+    },
+    // UDP como fallback
+    {
+      urls: `turn:${TURN_HOST}:${TURN_PORT}`,
+      username: TURN_USER,
+      credential: TURN_PASS,
+    },
+  ],
+}
+```
+
+**Ver documentación completa del frontend**: Ver `docs/frontend-turn-setup.md` para más detalles y ejemplos.
 
 ---
 
@@ -251,6 +331,47 @@ sudo firewall-cmd --list-all
 3. **Verificar logs** de coturn: `sudo tail -f /var/log/turn.log`
 4. **Verificar que los puertos** 49152-65535 están abiertos (crítico para relay)
 
+### Diagnóstico: ¿TURN está funcionando?
+
+**Síntoma**: Los jugadores solo pueden conectarse en la misma red WiFi.
+
+**Pasos de diagnóstico**:
+
+1. **Verificar en el navegador (Chrome/Edge)**:
+   - Abre DevTools (F12) → Pestaña "Network"
+   - Filtra por "WebRTC"
+   - Busca conexiones establecidas
+   - Si ves candidatos tipo `relay`, TURN está funcionando
+   - Si solo ves `host` o `srflx`, TURN NO está funcionando
+
+2. **Verificar candidatos ICE en consola**:
+   ```javascript
+   // En la consola del navegador
+   const pc = new RTCPeerConnection({
+     iceServers: [/* tu configuración */]
+   });
+   
+   pc.onicecandidate = (event) => {
+     if (event.candidate) {
+       console.log('Candidato ICE:', event.candidate.type, event.candidate.candidate);
+       // Deberías ver candidatos tipo "relay" si TURN funciona
+     }
+   };
+   ```
+
+3. **Verificar logs del servidor TURN**:
+   ```bash
+   # En el servidor/contenedor
+   tail -f /var/log/turn.log
+   # Busca líneas como "session" o "relay" cuando se conecta un cliente
+   ```
+
+4. **Test con herramienta online**:
+   - Ve a: https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
+   - Agrega tu servidor TURN
+   - Si ves candidatos `relay`, TURN funciona
+   - Si solo ves `host` o `srflx`, TURN no funciona
+
 ### Errores comunes
 
 **Error: "realm value is wrong"**
@@ -264,6 +385,20 @@ sudo firewall-cmd --list-all
 
 **Cloud Run: "UDP not supported"**
 - Cloud Run no soporta UDP nativamente. Considera usar GCE, GKE o un VPS.
+
+**"Solo funciona en la misma WiFi"**
+- Esto significa que TURN NO está funcionando. Posibles causas:
+  1. El frontend no está configurado para usar TURN (ver sección "Configuración del Frontend")
+  2. Cloud Run no soporta UDP (solución: usar VPS o TCP)
+  3. Las credenciales no coinciden entre servidor y frontend
+  4. El servidor TURN no está iniciado o tiene errores
+  5. Los puertos no están abiertos en el firewall
+
+**Solución rápida**:
+1. Verifica que el frontend tiene la configuración de `iceServers` con tu servidor TURN
+2. Usa `?transport=tcp` en la URL de TURN si estás en Cloud Run
+3. Verifica los logs del servidor para ver si hay errores
+4. Considera desplegar TURN en un VPS separado (ver `docs/cloud-run-turn-alternative.md`)
 
 ---
 
@@ -334,18 +469,32 @@ sudo turnadmin -l
 
 ## Checklist de Implementación
 
+### Backend (Servidor)
 - [ ] Coturn instalado (o incluido en Dockerfile)
 - [ ] Archivo `turnserver.conf` configurado
 - [ ] Realm configurado con el dominio correcto
 - [ ] Usuario y contraseña configurados
-- [ ] Puertos 3478, 5349 abiertos en firewall
-- [ ] Rango de puertos 49152-65535 abiertos en firewall
+- [ ] Variables de entorno configuradas (`ENABLE_TURN`, `TURN_REALM`, `TURN_USER`, `TURN_PASSWORD`)
+- [ ] Puertos 3478, 5349 abiertos en firewall (si es VPS)
+- [ ] Rango de puertos 49152-65535 abiertos en firewall (si es VPS)
 - [ ] Servicio coturn iniciado y habilitado (o ejecutándose en Docker)
 - [ ] Test STUN exitoso
 - [ ] Test TURN exitoso
-- [ ] Frontend actualizado con `USE_OWN_TURN = true`
-- [ ] Credenciales en frontend coinciden con servidor
 - [ ] Logs verificados sin errores
+
+### Frontend (Cliente)
+- [ ] Configuración de `iceServers` agregada a PeerJS
+- [ ] Servidor TURN agregado a la lista de `iceServers`
+- [ ] TCP configurado (`?transport=tcp`) si usas Cloud Run
+- [ ] Credenciales en frontend coinciden con servidor (`username` y `credential`)
+- [ ] Dominio del TURN coincide con `TURN_REALM` del servidor
+- [ ] Test en navegador muestra candidatos tipo `relay`
+
+### Verificación Final
+- [ ] Dos dispositivos en diferentes redes WiFi pueden conectarse
+- [ ] Candidatos ICE tipo `relay` aparecen en DevTools
+- [ ] No hay errores en la consola del navegador
+- [ ] Logs del servidor muestran sesiones TURN activas
 
 ---
 
@@ -353,11 +502,34 @@ sudo turnadmin -l
 
 Si tienes problemas:
 
-1. Revisa los logs: `sudo tail -f /var/log/turn.log` o logs del contenedor
-2. Verifica la configuración: `sudo turnserver -c /etc/turnserver.conf --log-file=stdout`
-3. Prueba con herramientas de test: `turnutils_stunclient` y `turnutils_oauth`
-4. Verifica firewall y puertos abiertos
-5. Asegúrate de que el realm y las credenciales coinciden entre servidor y frontend
+1. **Revisa los logs**: 
+   - Servidor: `sudo tail -f /var/log/turn.log` o logs del contenedor en Cloud Run
+   - Frontend: Abre DevTools (F12) → Console y Network tabs
+
+2. **Verifica la configuración**: 
+   - Servidor: `sudo turnserver -c /etc/turnserver.conf --log-file=stdout`
+   - Frontend: Verifica que `iceServers` incluye tu servidor TURN
+
+3. **Prueba con herramientas de test**: 
+   - `turnutils_stunclient` y `turnutils_oauth` en el servidor
+   - https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/ en el navegador
+
+4. **Verifica firewall y puertos abiertos** (solo si es VPS)
+
+5. **Asegúrate de que coinciden**:
+   - `TURN_REALM` en servidor = dominio en `iceServers` del frontend
+   - `TURN_USER` en servidor = `username` en frontend
+   - `TURN_PASSWORD` en servidor = `credential` en frontend
+
+6. **Si estás en Cloud Run**: 
+   - Considera que UDP puede no funcionar
+   - Usa `?transport=tcp` en la URL de TURN
+   - O despliega TURN en un VPS separado (ver `docs/cloud-run-turn-alternative.md`)
+
+## Documentación Relacionada
+
+- **Configuración del Frontend**: `docs/frontend-turn-setup.md` - Guía detallada para configurar el cliente
+- **Alternativa VPS**: `docs/cloud-run-turn-alternative.md` - Cómo desplegar TURN en VPS separado
 
 ---
 

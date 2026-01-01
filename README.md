@@ -79,17 +79,29 @@ Cloud Run funciona bien para este server **si lo mantienes en 1 instancia** (Pee
 
 Guía: ver `docs/cloud-run.md`.
 
-## Servidor TURN incluido
+## TURN Server (Separado)
 
-Este proyecto ahora incluye un **servidor TURN (Coturn)** configurado para permitir conexiones entre jugadores en diferentes redes. El servidor TURN se inicia automáticamente junto con PeerJS cuando `ENABLE_TURN=true`.
+Este proyecto es **SOLO para PeerJS (señalización)**. Para permitir conexiones entre jugadores en diferentes redes WiFi, necesitas un **servidor TURN separado**.
 
-**Variables de entorno para TURN** (ver `env.example`):
-- `ENABLE_TURN` (default `true`) - Habilitar/deshabilitar TURN
-- `TURN_REALM` - Dominio público del servidor (debe coincidir con el dominio de PeerJS)
-- `TURN_USER` - Usuario para autenticación TURN
-- `TURN_PASSWORD` - Contraseña para autenticación TURN
+**Arquitectura**:
+- **Este servidor (PeerJS)**: Solo señalización (mensajes de control)
+- **TURN Server**: Debe estar en otro servidor (VPS/GCE) para relay de datos
 
-**⚠️ Importante sobre Cloud Run**: Cloud Run tiene limitaciones con UDP y puertos dinámicos que TURN necesita. Para producción con TURN, considera usar Google Compute Engine (GCE) o un VPS tradicional.
+**⚠️ IMPORTANTE**: 
+- Cloud Run **NO soporta UDP**, necesario para TURN
+- TURN debe desplegarse en un servidor separado que soporte UDP
+- El frontend se conecta directamente al TURN (no pasa por PeerJS)
+
+**Opciones para TURN**:
+1. **Google Compute Engine (GCE)** - ⭐ **RECOMENDADO** - Ver `docs/google-cloud-turn-setup.md`
+2. **VPS separado** - Ver `docs/cloud-run-turn-alternative.md`
+3. **Servicio TURN público** (gratis con límites) - Metered.ca, Twilio
+
+**Ver comparación completa de todas las opciones**: `docs/turn-options-comparison.md`
+
+**Configuración del frontend**: Ver `docs/frontend-turn-setup.md` para configurar el cliente.
+
+**Arquitectura**: Ver `docs/turn-architecture.md` para entender cómo funciona (el frontend se comunica directamente con TURN, no PeerJS).
 
 Para más detalles sobre la configuración de TURN, ver `docs/turn-configuration.md`.
 
