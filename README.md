@@ -79,8 +79,18 @@ Cloud Run funciona bien para este server **si lo mantienes en 1 instancia** (Pee
 
 Guía: ver `docs/cloud-run.md`.
 
-## Nota sobre NAT estricta
+## Servidor TURN incluido
 
-PeerJS Server solo hace señalización. Si hay NAT estricta, puede hacer falta **TURN** además de STUN.
+Este proyecto ahora incluye un **servidor TURN (Coturn)** configurado para permitir conexiones entre jugadores en diferentes redes. El servidor TURN se inicia automáticamente junto con PeerJS cuando `ENABLE_TURN=true`.
+
+**Variables de entorno para TURN** (ver `env.example`):
+- `ENABLE_TURN` (default `true`) - Habilitar/deshabilitar TURN
+- `TURN_REALM` - Dominio público del servidor (debe coincidir con el dominio de PeerJS)
+- `TURN_USER` - Usuario para autenticación TURN
+- `TURN_PASSWORD` - Contraseña para autenticación TURN
+
+**⚠️ Importante sobre Cloud Run**: Cloud Run tiene limitaciones con UDP y puertos dinámicos que TURN necesita. Para producción con TURN, considera usar Google Compute Engine (GCE) o un VPS tradicional.
+
+Para más detalles sobre la configuración de TURN, ver `docs/turn-configuration.md`.
 
 

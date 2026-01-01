@@ -12,6 +12,11 @@ env_variables:
   PEER_PROXIED: "true"
   PEER_ALLOW_DISCOVERY: "false"
   PEER_KEY: "tankis-peer"
+  # TURN Server configuration
+  ENABLE_TURN: "true"
+  TURN_REALM: "peertankis-1093381928939.europe-southwest1.run.app"
+  TURN_USER: "tankis-turn"
+  TURN_PASSWORD: "tankis-turn-secret"
 
 # PeerJS suele ser stateful; por seguridad, empieza con 1 instancia.
 automatic_scaling:
