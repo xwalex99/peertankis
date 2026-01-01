@@ -2,18 +2,25 @@
 
 # Script de inicio para PeerJS + Coturn
 # Este script inicia ambos servicios en paralelo
-
-set -e
+# IMPORTANTE: PeerJS debe ejecutarse en primer plano para Cloud Run
 
 echo "=== Iniciando servicios Tankis ==="
+
+# Variables globales para PIDs
+COTURN_PID=""
 
 # Función para manejar señales y terminar procesos
 cleanup() {
     echo "Recibida señal de terminación, cerrando servicios..."
-    kill -TERM "$PEERJS_PID" 2>/dev/null || true
-    kill -TERM "$COTURN_PID" 2>/dev/null || true
-    wait "$PEERJS_PID" 2>/dev/null || true
-    wait "$COTURN_PID" 2>/dev/null || true
+    # Terminar Coturn si está corriendo
+    if [ -n "$COTURN_PID" ]; then
+        echo "Cerrando Coturn (PID: $COTURN_PID)..."
+        kill -TERM "$COTURN_PID" 2>/dev/null || true
+        wait "$COTURN_PID" 2>/dev/null || true
+    fi
+    # PeerJS está en primer plano, así que la señal se propagará automáticamente
+    # Pero también podemos intentar terminar procesos de node relacionados
+    pkill -TERM node 2>/dev/null || true
     exit 0
 }
 
@@ -118,34 +125,34 @@ EOF
     
     # Verificar que Coturn está corriendo
     if ! kill -0 $COTURN_PID 2>/dev/null; then
-        echo "ERROR: Coturn no pudo iniciarse"
-        exit 1
+        echo "ADVERTENCIA: Coturn no pudo iniciarse, continuando sin TURN"
+        echo "Nota: Esto puede afectar las conexiones entre jugadores en diferentes redes"
+        COTURN_PID=""
+    else
+        echo "Coturn está corriendo correctamente"
     fi
 else
     echo "TURN deshabilitado (ENABLE_TURN=false)"
     COTURN_PID=""
 fi
 
-# Iniciar PeerJS
-echo "Iniciando servidor PeerJS..."
-node server.js &
-PEERJS_PID=$!
-echo "PeerJS iniciado con PID: $PEERJS_PID"
+# Iniciar PeerJS en PRIMER PLANO (requerido por Cloud Run)
+# Cloud Run necesita que el proceso principal esté en primer plano escuchando en el puerto
+echo "Iniciando servidor PeerJS (proceso principal)..."
+echo "PeerJS escuchará en el puerto ${PORT:-8080}"
 
-# Esperar a que ambos procesos terminen
-wait $PEERJS_PID
+# Ejecutar PeerJS en primer plano (sin &) - esto será el proceso principal
+# El script esperará aquí hasta que PeerJS termine
+node server.js
 PEERJS_EXIT=$?
 
+# Cuando PeerJS termine, limpiar Coturn si está corriendo
 if [ -n "$COTURN_PID" ]; then
-    wait $COTURN_PID
-    COTURN_EXIT=$?
-else
-    COTURN_EXIT=0
+    echo "PeerJS terminó, cerrando Coturn..."
+    kill -TERM "$COTURN_PID" 2>/dev/null || true
+    wait "$COTURN_PID" 2>/dev/null || true
 fi
 
-# Si alguno falla, salir con error
-if [ $PEERJS_EXIT -ne 0 ] || [ $COTURN_EXIT -ne 0 ]; then
-    echo "ERROR: Uno de los servicios falló"
-    exit 1
-fi
+# Salir con el código de salida de PeerJS
+exit $PEERJS_EXIT
 
