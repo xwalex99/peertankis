@@ -1,6 +1,6 @@
-# PeerJS Server propio (Node.js) — para Tankis
+# WebSocket Backend propio (Node.js) — para Tankis
 
-Este repo levanta un **servidor de señalización PeerJS** (no es un “servidor de juego”). Sirve para que tus clientes WebRTC intercambien SDP/ICE sin depender del cloud gratuito (`0.peerjs.com`).
+Este repo levanta un **servidor WebSocket** compatible con el frontend de Tankis. El server actúa como relay entre jugadores (sala) y responde al heartbeat.
 
 ## Ejecutar local
 
@@ -11,27 +11,77 @@ npm install
 npm start
 ```
 
-Por defecto escucha en `:9000/peerjs`.
+Por defecto escucha en `ws://localhost:9000/ws`.
 
 Variables de entorno (ver `env.example`):
+- `HOST` (default `0.0.0.0`)
 - `PORT` (default `9000`)
-- `PEER_PATH` (default `"/peerjs"`)
-- `PEER_PROXIED` (default `true`)
-- `PEER_ALLOW_DISCOVERY` (default `false`)
-- `PEER_KEY` (default `"tankis-peer"`; si lo usas, el cliente debe usar la misma `key`)
+- `WS_PATH` (default `"/ws"`)
+
+## Endpoint esperado por el frontend
+
+El frontend conecta a:
+
+```
+ws(s)://<host>/ws?roomId=<roomId>&playerId=<playerId>&isHost=0|1
+```
+
+Configurable con `VITE_WS_URL`.
+
+## Mensajes base
+
+Eventos soportados:
+- `PING` → heartbeat del cliente.
+- `PONG` → respuesta del servidor.
+- `JOIN` / `REJOIN` → cuando un jugador entra.
+- `PLAYER_LEFT` → cuando sale.
+- `SYNC_STATE`, `PLAYER_UPDATE`, `FIRE`, etc → mensajes de gameplay.
+
+El servidor agrega `meta.peerId` e `meta.isHost` a los mensajes reenviados.
+
+## Routing (envelope)
+
+El frontend puede enviar un JSON con opciones de routing:
+
+```json
+{
+  "type": "PLAYER_UPDATE",
+  "payload": { "...": "..." },
+  "targetPeerId": "abc123",
+  "targetRole": "HOST",
+  "broadcast": true,
+  "excludePeerId": "abc123"
+}
+```
+
+Reglas:
+- `targetRole: "HOST"` → se envía solo al host de la sala.
+- `targetPeerId` → se envía solo al peer indicado.
+- `broadcast: true` → se envía a todos, excepto `excludePeerId` si aplica.
+- Si no hay routing explícito, se envía al host por defecto.
+
+Ejemplo de mensaje reenviado:
+
+```json
+{
+  "type": "PLAYER_UPDATE",
+  "payload": { "...": "..." },
+  "meta": { "peerId": "abc123", "isHost": false }
+}
+```
 
 ## Producción con HTTPS/WSS (Nginx)
 
 Lo más estable:
-- PeerJS escuchando en **HTTP interno** (ej: `127.0.0.1:9000`)
-- Nginx sirviendo `https://peer.tudominio.com/peerjs` con soporte WebSocket
+- WS escuchando en **HTTP interno** (ej: `127.0.0.1:9000`)
+- Nginx sirviendo `https://ws.tudominio.com/ws` con soporte WebSocket
 
 Ejemplo de config:
 
 ```nginx
 server {
   listen 80;
-  server_name peer.tudominio.com;
+  server_name ws.tudominio.com;
 
   location / {
     return 301 https://$host$request_uri;
@@ -40,13 +90,13 @@ server {
 
 server {
   listen 443 ssl http2;
-  server_name peer.tudominio.com;
+  server_name ws.tudominio.com;
 
-  ssl_certificate     /etc/letsencrypt/live/peer.tudominio.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/peer.tudominio.com/privkey.pem;
+  ssl_certificate     /etc/letsencrypt/live/ws.tudominio.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/ws.tudominio.com/privkey.pem;
 
-  location /peerjs {
-    proxy_pass http://127.0.0.1:9000/peerjs;
+  location /ws {
+    proxy_pass http://127.0.0.1:9000/ws;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -57,52 +107,22 @@ server {
 ```
 
 Checklist rápida:
-- El **path** debe coincidir: Nginx (`/peerjs`) = server (`PEER_PATH`) = cliente (`options.path`)
-- Si usas **key**: server (`PEER_KEY`) = cliente (`options.key`)
+- El **path** debe coincidir: Nginx (`/ws`) = server (`WS_PATH`) = cliente (`VITE_WS_URL`)
 - Sin `Upgrade/Connection`, **WebSocket falla**
-- Para HTTPS detrás de proxy: deja `PEER_PROXIED=true`
 
-## Importante: Vercel (serverless) NO es un buen lugar para el PeerJS Server
+## Importante: Vercel (serverless)
 
-- Este repo es un **servidor** (signaling) y **no** un frontend, por eso en Vercel verás `404: NOT_FOUND` si lo despliegas tal cual.
-- Además, PeerJS usa **WebSockets** y necesita conexiones **persistentes**; el modelo serverless de Vercel no está pensado para mantener WS “vivos” de forma estable.
+- Este repo es un **servidor**, por eso en Vercel verás `404: NOT_FOUND` si lo despliegas tal cual.
+- WebSockets necesitan conexiones **persistentes**; el modelo serverless de Vercel no es ideal.
 
-**Recomendación**: despliega el **frontend** en Vercel y el **PeerJS Server** en un VPS/host con soporte de WebSockets (Nginx/Caddy delante con TLS).
+**Recomendación**: despliega el **frontend** en Vercel y este **WS Server** en un VPS/host con soporte de WebSockets (Nginx/Caddy delante con TLS).
 
-## Opción recomendada si usas Vercel para el frontend: Google Cloud Run
+## Cloud Run
 
-Cloud Run funciona bien para este server **si lo mantienes en 1 instancia** (PeerJS guarda estado en memoria; con varias instancias sin sticky sessions se rompe).
+Cloud Run funciona bien para este server **si lo mantienes en 1 instancia** (el estado es in-memory).
 
 - **max instances**: `1`
 - **min instances**: `1` (evita cold starts)
 - **timeout**: alto (ej: `3600s`) para WebSockets
 
 Guía: ver `docs/cloud-run.md`.
-
-## TURN Server (Separado)
-
-Este proyecto es **SOLO para PeerJS (señalización)**. Para permitir conexiones entre jugadores en diferentes redes WiFi, necesitas un **servidor TURN separado**.
-
-**Arquitectura**:
-- **Este servidor (PeerJS)**: Solo señalización (mensajes de control)
-- **TURN Server**: Debe estar en otro servidor (VPS/GCE) para relay de datos
-
-**⚠️ IMPORTANTE**: 
-- Cloud Run **NO soporta UDP**, necesario para TURN
-- TURN debe desplegarse en un servidor separado que soporte UDP
-- El frontend se conecta directamente al TURN (no pasa por PeerJS)
-
-**Opciones para TURN**:
-1. **Google Compute Engine (GCE)** - ⭐ **RECOMENDADO** - Ver `docs/google-cloud-turn-setup.md`
-2. **VPS separado** - Ver `docs/cloud-run-turn-alternative.md`
-3. **Servicio TURN público** (gratis con límites) - Metered.ca, Twilio
-
-**Ver comparación completa de todas las opciones**: `docs/turn-options-comparison.md`
-
-**Configuración del frontend**: Ver `docs/frontend-turn-setup.md` para configurar el cliente.
-
-**Arquitectura**: Ver `docs/turn-architecture.md` para entender cómo funciona (el frontend se comunica directamente con TURN, no PeerJS).
-
-Para más detalles sobre la configuración de TURN, ver `docs/turn-configuration.md`.
-
-
