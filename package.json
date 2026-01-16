@@ -12,6 +12,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "peer": "^1.0.2"
+    "ws": "^8.18.3"
   }
 }
