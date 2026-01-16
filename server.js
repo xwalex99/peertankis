@@ -8,7 +8,7 @@ const rooms = new Map();
 
 const getRoom = (roomId) => {
   if (!rooms.has(roomId)) {
-    rooms.set(roomId, { clients: new Set(), host: null });
+    rooms.set(roomId, { clients: new Set(), clientsById: new Map() });
   }
   return rooms.get(roomId);
 };
@@ -21,26 +21,12 @@ const safeParse = (data) => {
   }
 };
 
-const sendToClient = (client, message) => {
-  if (client.readyState === client.OPEN) {
-    client.send(JSON.stringify(message));
-  }
-};
-
-const broadcastRoom = (room, message, { excludePeerId } = {}) => {
-  for (const client of room.clients) {
-    if (excludePeerId && client.playerId === excludePeerId) continue;
-    sendToClient(client, message);
-  }
-};
-
 const wss = new WebSocketServer({ host, port, path });
 
 wss.on("connection", (socket, req) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const roomId = url.searchParams.get("roomId");
   const playerId = url.searchParams.get("playerId");
-  const isHost = url.searchParams.get("isHost") === "1";
 
   if (!roomId || !playerId) {
     socket.close();
@@ -48,73 +34,52 @@ wss.on("connection", (socket, req) => {
   }
 
   socket.playerId = playerId;
-  socket.isHost = isHost;
 
   const room = getRoom(roomId);
   room.clients.add(socket);
-  if (isHost) {
-    room.host = socket;
-  }
-
-  const joinMessage = {
-    type: "JOIN",
-    meta: { peerId: playerId, isHost },
-  };
-  broadcastRoom(room, joinMessage, { excludePeerId: playerId });
+  room.clientsById.set(playerId, socket);
 
   socket.on("message", (raw) => {
     const message = safeParse(raw);
     if (!message) return;
 
     if (message.type === "PING") {
-      sendToClient(socket, { type: "PONG", timestamp: Date.now() });
+      if (socket.readyState === socket.OPEN) {
+        socket.send(JSON.stringify({ type: "PONG", timestamp: Date.now() }));
+      }
       return;
     }
 
     const envelope = {
       ...message,
-      meta: { peerId: playerId, isHost },
+      meta: { peerId: playerId },
     };
 
-    if (message.targetRole === "HOST" && room.host) {
-      sendToClient(room.host, envelope);
-      return;
-    }
-
     if (message.targetPeerId) {
-      for (const client of room.clients) {
-        if (client.playerId === message.targetPeerId) {
-          sendToClient(client, envelope);
-          return;
-        }
+      const target = room.clientsById.get(message.targetPeerId);
+      if (target && target.readyState === target.OPEN) {
+        target.send(JSON.stringify(envelope));
       }
       return;
     }
 
-    if (message.broadcast === true) {
-      broadcastRoom(room, envelope, {
-        excludePeerId: message.excludePeerId || playerId,
-      });
-      return;
+    const shouldBroadcast = message.broadcast === true;
+    if (!shouldBroadcast) {
+      // TODO: Aquí iría la lógica autoritativa del servidor.
+      // Para pruebas rápidas, reenviamos a todos los clientes (relay simple).
     }
 
-    if (room.host && room.host !== socket) {
-      sendToClient(room.host, envelope);
+    for (const client of room.clients) {
+      if (client.readyState !== client.OPEN) continue;
+      if (client === socket) continue;
+      if (message.excludePeerId && client.playerId === message.excludePeerId) continue;
+      client.send(JSON.stringify(envelope));
     }
   });
 
   socket.on("close", () => {
     room.clients.delete(socket);
-    if (room.host === socket) {
-      room.host = null;
-    }
-
-    const leftMessage = {
-      type: "PLAYER_LEFT",
-      payload: { peerId: playerId },
-      meta: { peerId: playerId, isHost },
-    };
-    broadcastRoom(room, leftMessage, { excludePeerId: playerId });
+    room.clientsById.delete(playerId);
 
     if (room.clients.size === 0) {
       rooms.delete(roomId);
