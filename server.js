@@ -74,6 +74,8 @@ wss.on("connection", (socket, req) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const roomId = url.searchParams.get("roomId");
   const playerId = url.searchParams.get("playerId");
+  const isHostParam = url.searchParams.get("isHost");
+  const isHost = isHostParam === "1" || isHostParam === "true";
 
   if (!roomId || !playerId) {
     socket.close();
@@ -84,10 +86,14 @@ wss.on("connection", (socket, req) => {
 
   socket.playerId = playerId;
   socket.roomId = roomId;
+  socket.isHost = isHost;
 
   const room = getRoom(roomId);
   room.clients.add(socket);
   room.clientsById.set(playerId, socket);
+  if (isHost) {
+    room.hostPeerId = playerId;
+  }
 
   socket.on("message", (raw) => {
     const message = safeParse(raw);
@@ -138,7 +144,7 @@ wss.on("connection", (socket, req) => {
       broadcastPeerList(room);
 
       // Broadcast el JOIN a los demás
-      const envelope = { ...message, meta: { peerId: playerId } };
+      const envelope = { ...message, meta: { peerId: playerId, isHost: socket.isHost } };
       for (const client of room.clients) {
         if (client.readyState !== client.OPEN || client === socket) continue;
         client.send(JSON.stringify(envelope));
@@ -157,7 +163,7 @@ wss.on("connection", (socket, req) => {
     // Resto de mensajes - relay normal
     const envelope = {
       ...message,
-      meta: { peerId: playerId },
+      meta: { peerId: playerId, isHost: socket.isHost },
     };
 
     if (message.targetPeerId) {
@@ -165,6 +171,30 @@ wss.on("connection", (socket, req) => {
       if (target && target.readyState === target.OPEN) {
         target.send(JSON.stringify(envelope));
       }
+      return;
+    }
+
+    if (message.targetRole === "HOST") {
+      const hostSocket = room.hostPeerId ? room.clientsById.get(room.hostPeerId) : null;
+      if (hostSocket && hostSocket.readyState === hostSocket.OPEN) {
+        hostSocket.send(JSON.stringify(envelope));
+        return;
+      }
+    }
+
+    if (message.broadcast) {
+      for (const client of room.clients) {
+        if (client.readyState !== client.OPEN) continue;
+        if (client === socket) continue;
+        if (message.excludePeerId && client.playerId === message.excludePeerId) continue;
+        client.send(JSON.stringify(envelope));
+      }
+      return;
+    }
+
+    const hostSocket = room.hostPeerId ? room.clientsById.get(room.hostPeerId) : null;
+    if (hostSocket && hostSocket.readyState === hostSocket.OPEN && hostSocket !== socket) {
+      hostSocket.send(JSON.stringify(envelope));
       return;
     }
 
@@ -181,6 +211,9 @@ wss.on("connection", (socket, req) => {
     console.log(`🔌 [${roomId}] Desconexión: ${playerId}`);
     room.clients.delete(socket);
     room.clientsById.delete(playerId);
+    if (room.hostPeerId === playerId) {
+      room.hostPeerId = null;
+    }
 
     // Remover jugador y notificar a los demás
     if (room.players.has(playerId)) {
