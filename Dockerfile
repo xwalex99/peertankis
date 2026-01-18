@@ -4,21 +4,24 @@ WORKDIR /app
 
 # Install deps first (better layer caching)
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# Copy the rest
-COPY server.js ./
+# Copy source files
+COPY tsconfig.json ./
+COPY src ./src
+
+# Build TypeScript
+RUN npm run build
+
+# Remove dev dependencies and source files
+RUN npm ci --omit=dev
+RUN rm -rf src tsconfig.json
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=8080
-ENV PEER_PATH=/peerjs
-ENV PEER_PROXIED=true
-ENV PEER_ALLOW_DISCOVERY=false
-ENV PEER_KEY=tankis-peer
+ENV WS_PATH=/ws
 
 EXPOSE 8080
 
-CMD ["node", "server.js"]
-
-
+CMD ["node", "dist/server.js"]
