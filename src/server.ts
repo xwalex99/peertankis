@@ -12,12 +12,23 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 const WS_PATH = process.env.WS_PATH || '/ws';
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Crear servidor HTTP para health check
+// Crear servidor HTTP para health check y raíz (evitar 404 en GET /)
 const httpServer = createServer((req, res) => {
-  if (req.url === '/health') {
+  const url = req.url?.split('?')[0] ?? '';
+  if (url === '/' || url === '') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      service: 'peertankis-ws',
+      ok: true,
+      ws: WS_PATH,
+      uptime: Math.floor(process.uptime())
+    }));
+    return;
+  }
+  if (url === '/health') {
     const totalClients = getTotalClients();
     const totalRooms = getAllRooms().size;
-    
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok',
@@ -25,10 +36,10 @@ const httpServer = createServer((req, res) => {
       clients: totalClients,
       uptime: Math.floor(process.uptime())
     }));
-  } else {
-    res.writeHead(404);
-    res.end('Not found');
+    return;
   }
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'not_found' }));
 });
 
 // Crear servidor WebSocket

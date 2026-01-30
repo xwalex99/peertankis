@@ -1,12 +1,3 @@
-<<<<<<< HEAD
-# Tankis WebSocket Backend
-
-This repo runs the Tankis WebSocket backend that replaces PeerJS/TURN. It keeps room presence and relays game messages. The host still simulates the game (not server-authoritative).
-
-## Run locally
-
-Requires Node 18+ (recommended 20+).
-=======
 # WebSocket Backend para TankisBattle
 
 Este repositorio contiene el **servidor WebSocket** que actúa como autoridad central para el juego TankisBattle. Todos los clientes se conectan al servidor y el servidor reenvía los mensajes a los demás jugadores.
@@ -30,7 +21,6 @@ Este repositorio contiene el **servidor WebSocket** que actúa como autoridad ce
 ## 🏃 Ejecutar Localmente
 
 ### Desarrollo
->>>>>>> aa737854ad604761e08b2bd2bebb052c8d28a753
 
 ```bash
 # Instalar dependencias
@@ -50,46 +40,9 @@ npm run build
 npm start
 ```
 
-<<<<<<< HEAD
-Default: `:8080/ws`
-
-## Environment
-
-See `env.example` for the full list.
-
-Common settings:
-- `PORT` (default `8080`)
-- `WS_PATH` (default `/ws`)
-- `ALLOWED_ORIGINS` (comma-separated list, optional)
-- `MAX_ROOM_PLAYERS` (default `10`)
-- `ROOM_IDLE_TTL_MS` (default `60000`)
-- `MESSAGE_MAX_BYTES` (default `65536`)
-- `RATE_LIMIT_PER_SEC` (default `50`)
-- `PUBLIC_ROOMS_JSON` (optional)
-
-## Health check
-
-`GET /health` returns `{ "ok": true }` when enabled.
-
-## Nginx (example)
-
-```nginx
-location /ws {
-  proxy_pass http://127.0.0.1:8080/ws;
-  proxy_http_version 1.1;
-  proxy_set_header Upgrade $http_upgrade;
-  proxy_set_header Connection "upgrade";
-  proxy_set_header Host $host;
-  proxy_read_timeout 86400;
-}
-```
-
-## Notes
-
-- If you scale horizontally, use sticky sessions or shared room storage.
-- The frontend should connect to `VITE_TANKIS_WS_URL` or `ws(s)://<host>/ws`.
-=======
 Por defecto escucha en `ws://localhost:8080/ws`.
+
+**Rutas HTTP**: `GET /` devuelve `{ "service": "peertankis-ws", "ok": true }`. `GET /health` devuelve estado detallado (salas, clientes, uptime).
 
 ## ⚙️ Variables de Entorno
 
@@ -289,4 +242,3 @@ Este proyecto fue migrado desde PeerJS a WebSocket puro. Ver `backend/MIGRATION_
 ## 📄 Licencia
 
 Este proyecto es privado.
->>>>>>> aa737854ad604761e08b2bd2bebb052c8d28a753

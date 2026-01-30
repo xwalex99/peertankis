@@ -48,7 +48,13 @@ const rooms = new Map();
 const socketMeta = new WeakMap();
 
 const server = http.createServer((req, res) => {
-  if (ENABLE_HEALTH && req.url === "/health") {
+  const url = req.url?.split("?")[0] ?? "";
+  if (url === "/" || url === "") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ service: "peertankis-ws", ok: true, ws: WS_PATH }));
+    return;
+  }
+  if (ENABLE_HEALTH && url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));
     return;
@@ -530,11 +536,4 @@ heartbeatInterval.unref();
 server.listen(PORT, HOST, () => {
   console.log(`[ws] listening on ${HOST}:${PORT}${WS_PATH}`);
 });
-<<<<<<< HEAD
-
-=======
-//dsdaasd
-console.log(`[peerjs] listening on ${host}:${port}${path} (key=${key})`);
-//com
->>>>>>> aa737854ad604761e08b2bd2bebb052c8d28a753
 

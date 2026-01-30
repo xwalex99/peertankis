@@ -33,11 +33,7 @@ steps:
       - "--port"
       - "8080"
       - "--set-env-vars"
-<<<<<<< HEAD
-      - "HOST=0.0.0.0,WS_PATH=/ws,MAX_ROOM_PLAYERS=10,ROOM_IDLE_TTL_MS=60000,MESSAGE_MAX_BYTES=65536,RATE_LIMIT_PER_SEC=50"
-=======
-      - "HOST=0.0.0.0,WS_PATH=/ws,NODE_ENV=production"
->>>>>>> aa737854ad604761e08b2bd2bebb052c8d28a753
+      - "HOST=0.0.0.0,WS_PATH=/ws,NODE_ENV=production,MAX_ROOM_PLAYERS=10,ROOM_IDLE_TTL_MS=60000,MESSAGE_MAX_BYTES=65536,RATE_LIMIT_PER_SEC=50"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
