@@ -8,12 +8,13 @@ env_variables:
   NODE_ENV: "production"
   HOST: "0.0.0.0"
   PORT: "8080"
-  PEER_PATH: "/peerjs"
-  PEER_PROXIED: "true"
-  PEER_ALLOW_DISCOVERY: "false"
-  PEER_KEY: "tankis-peer"
+  WS_PATH: "/ws"
+  MAX_ROOM_PLAYERS: "10"
+  ROOM_IDLE_TTL_MS: "60000"
+  MESSAGE_MAX_BYTES: "65536"
+  RATE_LIMIT_PER_SEC: "50"
 
-# PeerJS suele ser stateful; por seguridad, empieza con 1 instancia.
+# Room state is in memory; start with a single instance unless you add shared storage.
 automatic_scaling:
   min_num_instances: 1
   max_num_instances: 1
