@@ -468,8 +468,7 @@ wss.on("connection", (ws) => {
     }
 
     if (!ws.rateLimit()) {
-      sendError(ws, "Rate limit exceeded", "RATE_LIMIT");
-      return;
+      return; // No enviar ROOM_ERROR; ignorar mensaje y seguir
     }
 
     let parsed;
