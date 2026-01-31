@@ -1,0 +1,3 @@
+En el código que aplica el rate limit a ROOM_MESSAGE (p. ej. rateLimit.ts o el handler del WebSocket):
+Opción A: cuando el cliente supere el límite, no enviar ROOM_ERROR; solo no procesar/reenviar ese mensaje y seguir.
+Opción B: subir la constante del límite (mensajes por ventana) para que entren al menos ~30–40 mensajes por segundo por cliente.
