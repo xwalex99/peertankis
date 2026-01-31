@@ -225,15 +225,18 @@ function buildRoomStatus(roomCode) {
   if (!room) {
     return {
       code: roomCode,
+      roomCode,
       status: "OFFLINE",
       players: 0,
       max: MAX_ROOM_PLAYERS,
       teamPlayers: { RED: [], BLUE: [] },
+      mode: null,
     };
   }
   const status = room.peers.size >= room.maxPlayers ? "FULL" : "OPEN";
   return {
     code: room.code,
+    roomCode: room.code,
     status,
     players: room.peers.size,
     max: room.maxPlayers,

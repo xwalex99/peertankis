@@ -1,21 +1,12 @@
+# Backend para tankisbattle.app: protocolo ROOM_* (server.js)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install deps first (better layer caching)
 COPY package.json package-lock.json ./
-RUN npm ci
-
-# Copy source files
-COPY tsconfig.json ./
-COPY src ./src
-
-# Build TypeScript
-RUN npm run build
-
-# Remove dev dependencies and source files
 RUN npm ci --omit=dev
-RUN rm -rf src tsconfig.json
+
+COPY server.js ./
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
@@ -28,4 +19,4 @@ ENV RATE_LIMIT_PER_SEC=50
 
 EXPOSE 8080
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "server.js"]
