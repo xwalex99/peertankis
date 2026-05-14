@@ -3,18 +3,19 @@ substitutions:
   _AR_REPO: peertankis
   _IMAGE: peertankis
   _SERVICE: peertankis
+  _TAG: manual
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}', '.']
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${_TAG}', '.']
     timeout: '1200s'  # Aumentar tiempo de construcción para instalar dependencias
 
   # Subir la imagen a Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}']
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${_TAG}']
     timeout: '600s'  # Aumentar tiempo de subida
 
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -24,7 +25,7 @@ steps:
       - "deploy"
       - "${_SERVICE}"
       - "--image"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${_TAG}"
       - "--region"
       - "${_REGION}"
       - "--platform"
@@ -32,10 +33,16 @@ steps:
       - "--allow-unauthenticated"
       - "--port"
       - "8080"
+      - "--min-instances"
+      - "1"
+      - "--max-instances"
+      - "1"
+      - "--timeout"
+      - "3600"
       - "--set-env-vars"
-      - "HOST=0.0.0.0,WS_PATH=/ws,NODE_ENV=production,MAX_ROOM_PLAYERS=10,ROOM_IDLE_TTL_MS=60000,MESSAGE_MAX_BYTES=65536,RATE_LIMIT_PER_SEC=50,ALLOWED_ORIGINS=https://tankisbattle.app"
+      - "^|^HOST=0.0.0.0|WS_PATH=/ws|NODE_ENV=production|MAX_ROOM_PLAYERS=10|ROOM_IDLE_TTL_MS=60000|MESSAGE_MAX_BYTES=65536|RATE_LIMIT_PER_SEC=50|ALLOWED_ORIGINS=https://tankisbattle.app,http://localhost:4173,http://localhost:5173,http://localhost:5174,http://127.0.0.1:4173,http://127.0.0.1:5173,http://127.0.0.1:5174"
 
 images:
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${COMMIT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE}:${_TAG}"
 
 timeout: "2400s"

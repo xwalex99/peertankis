@@ -66,17 +66,34 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: MESSAGE_MAX_BYTES });
 
+function rejectUpgrade(socket, statusCode, message) {
+  try {
+    socket.write(
+      `HTTP/1.1 ${statusCode} ${message}\r\n` +
+      "Connection: close\r\n" +
+      "Content-Type: text/plain; charset=utf-8\r\n" +
+      `Content-Length: ${Buffer.byteLength(message)}\r\n` +
+      "\r\n" +
+      message
+    );
+  } catch {
+    // ignore
+  } finally {
+    socket.destroy();
+  }
+}
+
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
   if (url.pathname !== WS_PATH) {
-    socket.destroy();
+    rejectUpgrade(socket, 404, "WebSocket path not found");
     return;
   }
 
   const origin = req.headers.origin;
   if (ALLOWED_ORIGINS.size > 0) {
     if (!origin || !ALLOWED_ORIGINS.has(origin)) {
-      socket.destroy();
+      rejectUpgrade(socket, 403, "WebSocket origin not allowed");
       return;
     }
   }
